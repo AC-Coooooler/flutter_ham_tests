@@ -3,6 +3,7 @@ name: Build and serve
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,5 +18,3 @@ jobs:
           channel: 'stable'
       - run: flutter pub get
       - uses: bluefireteam/flutter-gh-pages@v7
-        with:
-          baseHref: ./
