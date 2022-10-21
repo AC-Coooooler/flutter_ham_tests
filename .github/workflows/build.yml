@@ -18,3 +18,5 @@ jobs:
           channel: 'stable'
       - run: flutter pub get
       - uses: bluefireteam/flutter-gh-pages@v7
+        with:
+          baseHref: /flutter_ham_tests/
