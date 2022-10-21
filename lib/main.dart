@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'flutter_ham_tests_routes.dart';
 
 late final SharedPreferences sp;
+const String _keyDarkMode = 'dark_mode';
 const String _keyDoneList = 'done_list';
 const String _keyFavoriteList = 'favorite_list';
 const String _keyWrongList = 'wrong_list';
@@ -20,7 +21,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   sp = await SharedPreferences.getInstance();
   await parseQuestions();
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 final allQuestions = <Question>[];
@@ -73,11 +74,32 @@ class Answer {
   }
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+final appGlobalKey = GlobalKey<_MyAppState>();
+
+class MyApp extends StatefulWidget {
+  MyApp() : super(key: appGlobalKey);
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  void rebuildAllChildren() {
+    setState(() {});
+
+    dev.log('Rebuilding all elements...');
+    void rebuild(Element el) {
+      el.markNeedsBuild();
+      el.visitChildren(rebuild);
+    }
+
+    (context as Element).visitChildren(rebuild);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final brightness =
+        sp.getBool(_keyDarkMode) == true ? Brightness.dark : Brightness.light;
     return OKToast(
       duration: const Duration(seconds: 3),
       position: ToastPosition.bottom.copyWith(
@@ -89,7 +111,8 @@ class MyApp extends StatelessWidget {
         theme: ThemeData(
           primarySwatch: const Color.fromARGB(255, 20, 56, 130).swatch,
           appBarTheme: const AppBarTheme(centerTitle: true),
-          textTheme: _textThemeBy(),
+          textTheme: _textThemeBy(brightness: brightness),
+          brightness: brightness,
         ),
         initialRoute: Routes.homePage.name,
         onGenerateRoute: (RouteSettings settings) => onGenerateRoute(
@@ -165,7 +188,21 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('HAM')),
+      appBar: AppBar(
+        title: const Text('HAM'),
+        leading: IconButton(
+          onPressed: () async {
+            final isDarkMode = sp.getBool(_keyDarkMode) == true;
+            await sp.setBool(_keyDarkMode, !isDarkMode);
+            appGlobalKey.currentState?.rebuildAllChildren();
+          },
+          icon: Icon(
+            sp.getBool(_keyDarkMode) == true
+                ? Icons.dark_mode
+                : Icons.light_mode,
+          ),
+        ),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
