@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:developer' as dev;
 import 'dart:ui' as ui;
 
 import 'package:ff_annotation_route_library/ff_annotation_route_library.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_ham_tests/flutter_ham_tests_route.dart';
@@ -98,8 +100,13 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness =
-        sp.getBool(_keyDarkMode) == true ? Brightness.dark : Brightness.light;
+    final Brightness brightness;
+    final isDarkMode = sp.getBool(_keyDarkMode);
+    if (isDarkMode == null) {
+      brightness = MediaQueryData.fromWindow(ui.window).platformBrightness;
+    } else {
+      brightness = isDarkMode ? Brightness.dark : Brightness.light;
+    }
     return OKToast(
       duration: const Duration(seconds: 3),
       position: ToastPosition.bottom.copyWith(
@@ -107,7 +114,8 @@ class _MyAppState extends State<MyApp> {
       ),
       radius: 5,
       child: MaterialApp(
-        title: 'Flutter Demo',
+        scrollBehavior: CustomScrollBehavior(),
+        title: 'HAM Tests',
         theme: ThemeData(
           primarySwatch: const Color.fromARGB(255, 20, 56, 130).swatch,
           appBarTheme: const AppBarTheme(centerTitle: true),
@@ -145,6 +153,42 @@ class _MyHomePageState extends State<MyHomePage> {
     Navigator.of(context).pushNamed(
       Routes.questionsPage.name,
       arguments: Routes.questionsPage.d(title: title, questions: questions),
+    );
+  }
+
+  Future<void> gotoExam() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('模拟考试'),
+        content: const Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '本次模拟考试将从365道A类题中取30道题，'
+                    '合格需答对25道题，时间共15分钟（正式考试约60分钟）。',
+              ),
+              TextSpan(
+                text: '开始考试？',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pushReplacementNamed(
+              Routes.examPage.name,
+            ),
+            child: const Text('开始'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('放弃'),
+          ),
+        ],
+        actionsPadding: const EdgeInsets.all(16),
+      ),
     );
   }
 
@@ -246,7 +290,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {},
+        onPressed: gotoExam,
         tooltip: '模拟考试',
         child: const Icon(Icons.score),
       ),
@@ -331,15 +375,16 @@ class _QuestionsPageState extends State<QuestionsPage> {
   }
 
   Widget _buildQuestion(BuildContext context) {
+    final question = widget.questions[index];
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Text.rich(
         TextSpan(
           children: [
             TextSpan(text: '[${index + 1}/$length]  '),
-            TextSpan(text: widget.questions[index].content),
+            TextSpan(text: question.content),
             TextSpan(
-              text: '[${currentQuestion.id}]',
+              text: '[${question.id}]',
               style: TextStyle(
                 color: Theme.of(context).textTheme.caption?.color,
               ),
@@ -347,7 +392,7 @@ class _QuestionsPageState extends State<QuestionsPage> {
           ],
         ),
         style: const TextStyle(
-          fontSize: 24,
+          fontSize: 20,
           height: 1.5,
           leadingDistribution: TextLeadingDistribution.even,
         ),
@@ -376,7 +421,7 @@ class _QuestionsPageState extends State<QuestionsPage> {
             behavior: HitTestBehavior.opaque,
             onTap: () => selectAnswer(answer),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -391,13 +436,13 @@ class _QuestionsPageState extends State<QuestionsPage> {
                         : selectedAnswer == answer
                             ? Colors.redAccent
                             : Colors.grey,
-                    size: 32,
+                    size: 28,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       answer.content,
-                      style: const TextStyle(fontSize: 24),
+                      style: const TextStyle(fontSize: 20, height: 1.4),
                     ),
                   ),
                 ],
@@ -421,9 +466,9 @@ class _QuestionsPageState extends State<QuestionsPage> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Column(
           children: [
-            Icon(icon, size: 36),
+            Icon(icon, size: 32),
             const SizedBox(height: 4),
-            Text(name, style: const TextStyle(fontSize: 20)),
+            Text(name, style: const TextStyle(fontSize: 16)),
           ],
         ),
       ),
@@ -438,10 +483,7 @@ class _QuestionsPageState extends State<QuestionsPage> {
         children: [
           Expanded(
             child: ListView(
-              children: [
-                _buildQuestion(context),
-                _buildAnswers(context),
-              ],
+              children: [_buildQuestion(context), _buildAnswers(context)],
             ),
           ),
           const Divider(height: 1),
@@ -469,6 +511,327 @@ class _QuestionsPageState extends State<QuestionsPage> {
       ),
     );
   }
+}
+
+class AnswerHolder {
+  AnswerHolder(this.answers, this.selectedAnswer);
+
+  final List<Answer> answers;
+  Answer? selectedAnswer;
+}
+
+@FFRoute(name: 'exam-page')
+class ExamPage extends StatefulWidget {
+  const ExamPage({
+    Key? key,
+    this.remainsMinutes = 15,
+  })  : assert(remainsMinutes > 0),
+        super(key: key);
+
+  final int remainsMinutes;
+
+  @override
+  State<ExamPage> createState() => _ExamPageState();
+}
+
+class _ExamPageState extends State<ExamPage> {
+  late final DateTime endTime;
+  late final ValueNotifier<String> remainsTime;
+  late final Timer timer;
+  late final Map<Question, AnswerHolder> holders;
+  late final List<Question> questions = holders.keys.toList();
+  final List<int> wrongIndex = [];
+  bool isTimeout = false, hasSubmitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    endTime = DateTime.now().add(Duration(minutes: widget.remainsMinutes));
+    remainsTime = ValueNotifier<String>(
+      '${'${widget.remainsMinutes}'.padLeft(2, '0')}:00',
+    );
+    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      final difference = endTime.difference(DateTime.now());
+      if (difference.isNegative) {
+        timesUp();
+      }
+      final minutes = difference.inSeconds ~/ 60;
+      final seconds = difference.inSeconds % 60;
+      remainsTime.value = '${'$minutes'.padLeft(2, '0')}'
+          ':${'$seconds'.padLeft(2, '0')}';
+    });
+    final questions = allQuestions.toList()..shuffle();
+    holders = Map.fromIterable(
+      questions.sublist(0, 30),
+      value: (e) => AnswerHolder((e as Question).getRandomAnswers(), null),
+    );
+  }
+
+  @override
+  void dispose() {
+    timer.cancel();
+    super.dispose();
+  }
+
+  void timesUp() {
+    timer.cancel();
+    isTimeout = true;
+    setState(() {});
+    showDialog(
+      context: context,
+      builder: (context) => const AlertDialog(
+        title: Center(child: Text('考试结束')),
+      ),
+    );
+  }
+
+  void selectAnswer(Question question, Answer answer) {
+    if (isTimeout) {
+      return;
+    }
+    setState(() {
+      holders[question]!.selectedAnswer = answer;
+    });
+  }
+
+  Future<void> submit() async {
+    final result = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('是否提交答卷？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('提交'),
+          ),
+          TextButton(
+            onPressed: Navigator.of(context).pop,
+            child: const Text('放弃'),
+          ),
+        ],
+        actionsPadding: const EdgeInsets.all(16),
+      ),
+    );
+    if (result != true) {
+      return;
+    }
+    timer.cancel();
+    final wrongAnswers = holders.entries
+        .where(
+          (e) => e.value.selectedAnswer?.isCorrect == false,
+        )
+        .toList();
+    wrongIndex.clear();
+    for (final entry in wrongAnswers) {
+      wrongIndex.add(questions.indexOf(entry.key) + 1);
+    }
+    hasSubmitted = true;
+    setState(() {});
+    final correctCount = holders.entries
+        .where((e) => e.value.selectedAnswer?.isCorrect == true)
+        .length;
+    final passed = correctCount >= 25;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('成绩${passed ? '合格' : '不合格'}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text.rich(
+              TextSpan(children: [
+                const TextSpan(text: '答对了'),
+                TextSpan(
+                  text: '$correctCount',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const TextSpan(text: '道'),
+                const TextSpan(text: '（答对'),
+                const TextSpan(
+                  text: '25',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const TextSpan(text: '即为合格）'),
+              ]),
+            ),
+            Text.rich(
+              TextSpan(children: [
+                const TextSpan(text: '错题：'),
+                if (wrongIndex.isEmpty)
+                  const TextSpan(text: '无')
+                else
+                  TextSpan(
+                    text: '$wrongIndex',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+              ]),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget _buildQuestion(BuildContext context, Question question, int index) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '${index + 1}.  '),
+            TextSpan(text: question.content),
+            TextSpan(
+              text: '[${question.id}]',
+              style: TextStyle(
+                color: Theme.of(context).textTheme.caption?.color,
+              ),
+            ),
+          ],
+        ),
+        style: const TextStyle(
+          fontSize: 20,
+          height: 1.5,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnswers(
+    BuildContext context,
+    Question question,
+    AnswerHolder holder,
+  ) {
+    final answers = holder.answers;
+    final selectedAnswer = holder.selectedAnswer;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        border: Border.symmetric(
+          horizontal: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+        color: Theme.of(context).cardColor,
+      ),
+      child: ListView.separated(
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemCount: answers.length,
+        itemBuilder: (context, index) {
+          final answer = answers[index];
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => selectAnswer(question, answer),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    selectedAnswer == answer
+                        ? Icons.circle
+                        : Icons.circle_outlined,
+                    color:
+                        selectedAnswer == answer ? Colors.green : Colors.grey,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      answer.content,
+                      style: const TextStyle(fontSize: 20, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('模拟考试')),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: questions.length,
+              itemBuilder: (context, index) {
+                final question = questions[index];
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildQuestion(context, question, index),
+                    _buildAnswers(context, question, holders[question]!),
+                  ],
+                );
+              },
+            ),
+          ),
+          Container(
+            height: 60,
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Theme.of(context).dividerColor),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: FittedBox(
+                      child: ValueListenableBuilder<String>(
+                        valueListenable: remainsTime,
+                        builder: (_, String value, __) => Text(
+                          isTimeout
+                              ? '已超时'
+                              : hasSubmitted
+                                  ? '已提交'
+                                  : value,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: isTimeout ? null : submit,
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      color: Theme.of(context).primaryColor,
+                      child: FittedBox(
+                        child: Text(
+                          isTimeout
+                              ? '无法交卷'
+                              : hasSubmitted
+                                  ? '再交一次'
+                                  : '提交答卷',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CustomScrollBehavior extends MaterialScrollBehavior {
+  // Override behavior methods and getters like dragDevices
+  @override
+  Set<PointerDeviceKind> get dragDevices => PointerDeviceKind.values.toSet();
 }
 
 TextTheme _textThemeBy({Brightness brightness = Brightness.light}) {

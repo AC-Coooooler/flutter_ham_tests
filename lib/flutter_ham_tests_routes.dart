@@ -11,12 +11,22 @@ import 'package:flutter/foundation.dart';
 import 'main.dart';
 
 const List<String> routeNames = <String>[
+  'exam-page',
   'home-page',
   'questions-page',
 ];
 
 class Routes {
   const Routes._();
+
+  /// 'exam-page'
+  ///
+  /// [name] : 'exam-page'
+  ///
+  /// [constructors] :
+  ///
+  /// ExamPage : [Key? key, int remainsMinutes]
+  static const _ExamPage examPage = _ExamPage();
 
   /// 'home-page'
   ///
@@ -31,6 +41,24 @@ class Routes {
   ///
   /// QuestionsPage : [Key? key, String(required) title, List<Question>(required) questions]
   static const _QuestionsPage questionsPage = _QuestionsPage();
+}
+
+class _ExamPage {
+  const _ExamPage();
+
+  String get name => 'exam-page';
+
+  Map<String, dynamic> d({
+    Key? key,
+    int remainsMinutes = 15,
+  }) =>
+      <String, dynamic>{
+        'key': key,
+        'remainsMinutes': remainsMinutes,
+      };
+
+  @override
+  String toString() => name;
 }
 
 class _HomePage {

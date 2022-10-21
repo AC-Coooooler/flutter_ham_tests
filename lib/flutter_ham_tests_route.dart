@@ -19,6 +19,20 @@ FFRouteSettings getRouteSettings({
   final Map<String, dynamic> safeArguments =
       arguments ?? const <String, dynamic>{};
   switch (name) {
+    case 'exam-page':
+      return FFRouteSettings(
+        name: name,
+        arguments: arguments,
+        builder: () => ExamPage(
+          key: asT<Key?>(
+            safeArguments['key'],
+          ),
+          remainsMinutes: asT<int>(
+            safeArguments['remainsMinutes'],
+            15,
+          )!,
+        ),
+      );
     case 'home-page':
       return FFRouteSettings(
         name: name,
