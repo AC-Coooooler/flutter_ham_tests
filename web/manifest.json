@@ -1,6 +1,6 @@
 {
-    "name": "flutter_ham_tests",
-    "short_name": "flutter_ham_tests",
+    "name": "HAM Tests",
+    "short_name": "HAM",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
