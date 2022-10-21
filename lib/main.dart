@@ -252,9 +252,8 @@ class _QuestionsPageState extends State<QuestionsPage> {
     // 记录错题情况
     sp.setStringList(_keyWrongList, wrongSet.toList());
     // 记录完成情况
-    final doneList = (sp.getStringList(_keyDoneList)?.toSet() ?? {}).toList()
-      ..add(id);
-    sp.setStringList(_keyDoneList, doneList);
+    final doneSet = (sp.getStringList(_keyDoneList)?.toSet() ?? {})..add(id);
+    sp.setStringList(_keyDoneList, doneSet.toList());
     setState(() {});
     if (answer.isCorrect) {
       nextQuestion();
