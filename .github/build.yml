@@ -1,0 +1,21 @@
+name: Build and serve
+
+on:
+  push:
+    branch: [main]
+
+jobs:
+  build:
+    name: Build Web
+    env:
+      my_secret: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - run: flutter pub get
+      - uses: bluefireteam/flutter-gh-pages@v7
+        with:
+          baseHref: ./
